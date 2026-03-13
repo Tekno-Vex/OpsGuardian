@@ -1,0 +1,6 @@
+{
+  "HighCPU": "pkill -f chaos_cpu.py",
+  "DiskFull": "rm -rf /tmp/cache",
+  "MemoryLeak": "sudo systemctl restart application",
+  "NetworkTimeout": "sudo systemctl restart networking"
+}
