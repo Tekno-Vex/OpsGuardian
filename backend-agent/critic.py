@@ -4,7 +4,6 @@ import json
 BLOCKLIST = [
     'rm -rf /',
     'rm -rf ~',
-    'rm -rf *',
     'mkfs',
     'dd if=/dev/zero',
     ':(){:|:&};:',

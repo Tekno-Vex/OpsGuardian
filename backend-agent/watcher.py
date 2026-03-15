@@ -30,11 +30,19 @@ def lambda_handler(event, context):
         alarm_name  = 'OpsGuardian-HighCPU-Alarm'
 
     # Determine alarm type from alarm name
-    alarm_type = 'HighCPU'
-    if 'Memory' in alarm_name or 'memory' in alarm_name:
+    alarm_name_lower = alarm_name.lower()
+    if 'memory' in alarm_name_lower or 'mem' in alarm_name_lower:
         alarm_type = 'HighMemory'
-    elif 'Disk' in alarm_name or 'disk' in alarm_name:
+    elif 'disk' in alarm_name_lower or 'storage' in alarm_name_lower:
         alarm_type = 'DiskFull'
+    elif 'network' in alarm_name_lower or 'timeout' in alarm_name_lower:
+        alarm_type = 'NetworkTimeout'
+    elif 'crash' in alarm_name_lower or 'process' in alarm_name_lower:
+        alarm_type = 'ProcessCrash'
+    else:
+        alarm_type = 'HighCPU'  # default
+    
+    print(f"Alarm name '{alarm_name}' mapped to type '{alarm_type}'")
 
     # Build the shared incident object
     incident = {

@@ -12,7 +12,7 @@
     "alarm_type": "HighMemory",
     "description": "Memory utilization climbing continuously, possible memory leak in application process",
     "symptoms": "memory full, oom, out of memory, swap usage high, ram exhausted, memory leak, heap overflow",
-    "fix": "sudo systemctl restart application",
+    "fix": "pkill -f chaos_memory.py",
     "severity": "high"
   },
   {
@@ -20,9 +20,9 @@
     "alarm_type": "DiskFull",
     "description": "Disk utilization exceeds 80 percent, storage space running out on root volume",
     "symptoms": "disk full, no space left, storage exhausted, cannot write files, disk usage high, filesystem full",
-    "fix": "rm -rf /tmp/cache",
+    "fix": "find /home/ssm-user/diskfill -type f -delete",
     "severity": "medium"
-  },
+},
   {
     "id": "net-001",
     "alarm_type": "NetworkTimeout",
