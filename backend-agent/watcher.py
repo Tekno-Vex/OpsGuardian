@@ -4,16 +4,16 @@ import uuid
 import os
 from datetime import datetime
 
-REGION         = 'us-east-2'
-STATE_MACHINE  = os.environ.get('STATE_MACHINE_ARN', 'PLACEHOLDER')
-FALLBACK_ID    = 'i-05f403183415c672e'  # your instance ID
+REGION        = 'us-east-2'
+STATE_MACHINE = os.environ.get('STATE_MACHINE_ARN', 'PLACEHOLDER')
+FALLBACK_ID   = 'i-05f403183415c672e'
 
 sfn = boto3.client('stepfunctions', region_name=REGION)
 
 def lambda_handler(event, context):
     print(f"Watcher activated. Event: {json.dumps(event)}")
 
-    # Parse instance ID from SNS-wrapped CloudWatch event
+    # Parse instance ID
     try:
         if 'Records' in event:
             sns_message = json.loads(event['Records'][0]['Sns']['Message'])
@@ -29,7 +29,7 @@ def lambda_handler(event, context):
         instance_id = FALLBACK_ID
         alarm_name  = 'OpsGuardian-HighCPU-Alarm'
 
-    # Determine alarm type from alarm name
+    # Determine alarm type
     alarm_name_lower = alarm_name.lower()
     if 'memory' in alarm_name_lower or 'mem' in alarm_name_lower:
         alarm_type = 'HighMemory'
@@ -40,19 +40,18 @@ def lambda_handler(event, context):
     elif 'crash' in alarm_name_lower or 'process' in alarm_name_lower:
         alarm_type = 'ProcessCrash'
     else:
-        alarm_type = 'HighCPU'  # default
-    
-    print(f"Alarm name '{alarm_name}' mapped to type '{alarm_type}'")
+        alarm_type = 'HighCPU'
 
-    # Build the shared incident object
+    print(f"Alarm: {alarm_name} → Type: {alarm_type} → Instance: {instance_id}")
+
     incident = {
-        'incident_id': str(uuid.uuid4()),
-        'timestamp':   datetime.utcnow().isoformat(),
-        'instance_id': instance_id,
-        'alarm_name':  alarm_name,
-        'alarm_type':  alarm_type,
-        'status':      'InProgress',
-        'runbook':     {},
+        'incident_id':      str(uuid.uuid4()),
+        'timestamp':        datetime.utcnow().isoformat(),
+        'instance_id':      instance_id,
+        'alarm_name':       alarm_name,
+        'alarm_type':       alarm_type,
+        'status':           'InProgress',
+        'runbook':          {},
         'proposed_command': '',
         'critic_approved':  False,
         'critic_reason':    '',
@@ -60,13 +59,11 @@ def lambda_handler(event, context):
         'reasoning':        ''
     }
 
-    print(f"Starting Step Functions for incident {incident['incident_id']}")
-
-    # Start the state machine
+    print(f"Starting pipeline for incident {incident['incident_id']}")
     sfn.start_execution(
         stateMachineArn=STATE_MACHINE,
         name=f"incident-{incident['incident_id']}",
         input=json.dumps(incident)
     )
 
-    return {'statusCode': 200, 'body': 'State machine started'}
+    return {'statusCode': 200, 'body': 'Pipeline started'}
