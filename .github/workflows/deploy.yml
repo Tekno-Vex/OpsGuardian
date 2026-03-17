@@ -1,0 +1,189 @@
+name: OpsGuardian CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+
+  # ── JOB 1: Syntax Check All Lambda Functions ─────────────
+  test-lambdas:
+    name: Lint Lambda Functions
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check syntax on all Lambda files
+        run: |
+          echo "Checking Lambda syntax..."
+          for f in backend-agent/*.py; do
+            # Skip the old monolithic file
+            if [[ "$f" == "backend-agent/lambda_function.py" ]]; then
+              echo "⏭️  Skipping legacy $f"
+              continue
+            fi
+            python -m py_compile "$f" && echo "✅ $f" || exit 1
+          done
+          echo "All Lambda functions passed syntax check!"
+
+  # ── JOB 2: Deploy All Lambda Functions ───────────────────
+  deploy-lambdas:
+    name: Deploy Lambda Functions
+    runs-on: ubuntu-latest
+    needs: test-lambdas
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy OpsGuardian-Watcher
+        run: |
+          zip -j watcher.zip backend-agent/watcher.py
+          aws lambda update-function-code \
+            --function-name OpsGuardian-Watcher \
+            --zip-file fileb://watcher.zip
+          echo "✅ Watcher deployed"
+
+      - name: Deploy OpsGuardian-Investigator
+        run: |
+          zip -j investigator.zip backend-agent/investigator.py
+          aws lambda update-function-code \
+            --function-name OpsGuardian-Investigator \
+            --zip-file fileb://investigator.zip
+          echo "✅ Investigator deployed"
+
+      - name: Deploy OpsGuardian-Architect
+        run: |
+          zip -j architect.zip backend-agent/architect.py
+          aws lambda update-function-code \
+            --function-name OpsGuardian-Architect \
+            --zip-file fileb://architect.zip
+          echo "✅ Architect deployed"
+
+      - name: Deploy OpsGuardian-Critic
+        run: |
+          zip -j critic.zip backend-agent/critic.py
+          aws lambda update-function-code \
+            --function-name OpsGuardian-Critic \
+            --zip-file fileb://critic.zip
+          echo "✅ Critic deployed"
+
+      - name: Deploy OpsGuardian-Executor
+        run: |
+          zip -j executor.zip backend-agent/executor.py
+          aws lambda update-function-code \
+            --function-name OpsGuardian-Executor \
+            --zip-file fileb://executor.zip
+          echo "✅ Executor deployed"
+
+      - name: Deploy OpsGuardian-Logger
+        run: |
+          zip -j logger.zip backend-agent/logger.py
+          aws lambda update-function-code \
+            --function-name OpsGuardian-Logger \
+            --zip-file fileb://logger.zip
+          echo "✅ Logger deployed"
+
+      - name: Deploy OpsGuardian-ApprovalGate
+        run: |
+          zip -j approval_gate.zip backend-agent/approval_gate.py
+          aws lambda update-function-code \
+            --function-name OpsGuardian-ApprovalGate \
+            --zip-file fileb://approval_gate.zip
+          echo "✅ ApprovalGate deployed"
+
+      - name: Deploy OpsGuardian-ApprovalHandler
+        run: |
+          zip -j approval_handler.zip backend-agent/approval_handler.py
+          aws lambda update-function-code \
+            --function-name OpsGuardian-ApprovalHandler \
+            --zip-file fileb://approval_handler.zip
+          echo "✅ ApprovalHandler deployed"
+
+      - name: Deploy OpsGuardian-API
+        run: |
+          zip -j api_handler.zip backend-agent/api_handler.py
+          aws lambda update-function-code \
+            --function-name OpsGuardian-API \
+            --zip-file fileb://api_handler.zip
+          echo "✅ API deployed"
+
+      - name: Deploy OpsGuardian-Analytics
+        run: |
+          zip -j analytics.zip backend-agent/analytics.py
+          aws lambda update-function-code \
+            --function-name OpsGuardian-Analytics \
+            --zip-file fileb://analytics.zip
+          echo "✅ Analytics deployed"
+
+      - name: Deploy OpsGuardian-LearningElement
+        run: |
+          zip -j learning_element.zip backend-agent/learning_element.py
+          aws lambda update-function-code \
+            --function-name OpsGuardian-LearningElement \
+            --zip-file fileb://learning_element.zip
+          echo "✅ LearningElement deployed"
+
+      - name: All Lambdas deployed
+        run: echo "🚀 All 11 Lambda functions deployed successfully!"
+
+  # ── JOB 3: Build & Deploy React Dashboard ────────────────
+  deploy-dashboard:
+    name: Deploy React Dashboard
+    runs-on: ubuntu-latest
+    needs: test-lambdas
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: opsguardian-ui/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd opsguardian-ui
+          npm install
+
+      - name: Build React app
+        run: |
+          cd opsguardian-ui
+          npm run build
+        env:
+          CI: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync opsguardian-ui/build/ \
+            s3://${{ secrets.S3_DASHBOARD_BUCKET }} \
+            --delete
+          echo "✅ Dashboard deployed to S3"
