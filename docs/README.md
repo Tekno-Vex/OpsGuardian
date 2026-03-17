@@ -9,17 +9,17 @@
 ![Cost](https://img.shields.io/badge/Infrastructure_Cost-%240.00%2Fmonth-00C853?style=flat)
 ![Sprints](https://img.shields.io/badge/Sprints_Completed-11-2196F3?style=flat)
 
-> **OpsGuardian solves the Asymmetric Failure Problem** — cloud systems fail at machine speed, but manual debugging happens at human speed. OpsGuardian closes that gap with a 6-agent autonomous pipeline that detects, diagnoses, and remediates infrastructure failures in under **90 seconds** — without human intervention.
+> **OpsGuardian solves the Asymmetric Failure Problem** — cloud systems fail at machine speed, but manual debugging happens at human speed. OpsGuardian closes that gap with a 6-agent autonomous pipeline that detects, diagnoses, and remediates infrastructure failures in under **120 seconds** — without human intervention.
 
 ---
 
 ## 🎬 Live Demo
 
 ### System starts healthy — no incidents recorded
-![OpsGuardian Empty State](docs/OpsGuardian1.gif)
+![OpsGuardian Empty State](OpsGuardian1.gif)
 
 ### Chaos script triggers — OpsGuardian detects, diagnoses, and auto-remediates
-![OpsGuardian Resolving Incident](docs/OpsGuardian2.gif)
+![OpsGuardian Resolving Incident](OpsGuardian2.gif)
 
 **[🚀 View Live Mission Control Dashboard](http://opsguardian-dashboard.s3-website.us-east-2.amazonaws.com/)**
 
@@ -27,7 +27,7 @@
 
 ## 🏗️ Architecture
 
-![OpsGuardian Architecture](docs/architecture.png)
+![OpsGuardian Architecture](architecture.png)
 
 OpsGuardian is a **true Multi-Agent System (MAS)** — six specialized AI agents, each an independent AWS Lambda microservice, orchestrated by AWS Step Functions into a fault-tolerant distributed pipeline with semantic reasoning, safety gates, and human oversight.
 
