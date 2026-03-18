@@ -5,6 +5,7 @@
 ![AWS](https://img.shields.io/badge/AWS-Free%20Tier-FF9900?style=flat&logo=amazonaws&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react&logoColor=black)
 ![Amazon Bedrock](https://img.shields.io/badge/Amazon_Bedrock-Nova_Micro-7B2FBE?style=flat&logo=amazonaws&logoColor=white)
+[![OpsGuardian CI/CD Pipeline](https://github.com/Tekno-Vex/OpsGuardian/actions/workflows/deploy.yml/badge.svg)](https://github.com/Tekno-Vex/OpsGuardian/actions/workflows/deploy.yml)
 ![Cost](https://img.shields.io/badge/Infrastructure_Cost-%240.00%2Fmonth-00C853?style=flat)
 
 > **OpsGuardian solves the Asymmetric Failure Problem** — cloud systems fail at machine speed, but manual debugging happens at human speed. OpsGuardian closes that gap with a 6-agent autonomous pipeline that detects, diagnoses, and remediates infrastructure failures in under **90 seconds** — without human intervention.
