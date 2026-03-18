@@ -1,0 +1,31 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "ssm:SendCommand",
+        "ssm:GetCommandInvocation",
+        "ec2:DescribeInstances",
+        "s3:GetObject",
+        "s3:PutObject",
+        "dynamodb:PutItem",
+        "dynamodb:GetItem",
+        "dynamodb:Scan",
+        "dynamodb:Query",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "states:StartExecution",
+        "states:SendTaskSuccess",
+        "states:SendTaskFailure",
+        "states:ListExecutions",
+        "sns:Publish",
+        "logs:CreateLogGroup",
+        "logs:CreateLogDelivery",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

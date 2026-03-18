@@ -1,0 +1,290 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  OpsGuardian: Autonomous Cloud SRE Agent
+  Complete infrastructure stack including IAM, DynamoDB, S3, SNS, and EC2 profile.
+  Deploy with: aws cloudformation deploy --template-file infrastructure/template.yaml
+  --stack-name OpsGuardian --parameter-overrides AlertEmail=your@email.com
+  --capabilities CAPABILITY_NAMED_IAM --region us-east-2
+
+Parameters:
+
+  AlertEmail:
+    Type: String
+    Description: Email address to receive OpsGuardian alerts and approval requests
+    Default: your@email.com
+
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues:
+      - prod
+      - dev
+    Description: Deployment environment
+
+  EC2InstanceType:
+    Type: String
+    Default: t3.micro
+    AllowedValues:
+      - t2.micro
+      - t3.micro
+    Description: EC2 instance type for the victim server (Free Tier eligible)
+
+Resources:
+
+  # ── DYNAMODB TABLES ────────────────────────────────────────────────────────
+
+  OpsGuardianStateTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: OpsGuardian_State
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: incident_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: incident_id
+          KeyType: HASH
+      Tags:
+        - Key: Project
+          Value: OpsGuardian
+        - Key: Environment
+          Value: !Ref Environment
+
+  OpsGuardianApprovalsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: OpsGuardian_PendingApprovals
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: approval_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: approval_id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expires_at
+        Enabled: true
+      Tags:
+        - Key: Project
+          Value: OpsGuardian
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ── S3 BUCKETS ─────────────────────────────────────────────────────────────
+
+  KnowledgeBaseBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub opsguardian-knowledge-base-${AWS::AccountId}
+      Tags:
+        - Key: Project
+          Value: OpsGuardian
+        - Key: Purpose
+          Value: RAG Knowledge Base
+
+  DashboardBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub opsguardian-dashboard-${AWS::AccountId}
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      Tags:
+        - Key: Project
+          Value: OpsGuardian
+        - Key: Purpose
+          Value: React Dashboard
+
+  DashboardBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DashboardBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Sub ${DashboardBucket.Arn}/*
+
+  # ── SNS TOPICS ─────────────────────────────────────────────────────────────
+
+  OpsGuardianAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: OpsGuardian-Alerts
+      Tags:
+        - Key: Project
+          Value: OpsGuardian
+        - Key: Purpose
+          Value: Agent pipeline triggers only
+
+  OpsGuardianEmailAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: OpsGuardian-Email-Alerts
+      Tags:
+        - Key: Project
+          Value: OpsGuardian
+        - Key: Purpose
+          Value: Human notifications only
+
+  AlertEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref OpsGuardianEmailAlertsTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
+  # ── IAM ROLES ──────────────────────────────────────────────────────────────
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: OpsGuardian-Lambda-Role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: OpsGuardian-Lambda-Policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - ssm:SendCommand
+                  - ssm:GetCommandInvocation
+                  - ec2:DescribeInstances
+                  - s3:GetObject
+                  - s3:PutObject
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - states:StartExecution
+                  - states:SendTaskSuccess
+                  - states:SendTaskFailure
+                  - states:ListExecutions
+                  - sns:Publish
+                  - logs:CreateLogGroup
+                  - logs:CreateLogDelivery
+                  - logs:PutLogEvents
+                Resource: '*'
+      Tags:
+        - Key: Project
+          Value: OpsGuardian
+
+  EC2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: OpsGuardian-EC2-Role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Tags:
+        - Key: Project
+          Value: OpsGuardian
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: OpsGuardian-EC2-Profile
+      Roles:
+        - !Ref EC2InstanceRole
+
+  # ── CLOUDWATCH ALARMS ──────────────────────────────────────────────────────
+
+  HighCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: OpsGuardian-HighCPU-Alarm
+      AlarmDescription: Triggers OpsGuardian when EC2 CPU exceeds 80%
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 80
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref OpsGuardianAlertsTopic
+      OKActions:
+        - !Ref OpsGuardianAlertsTopic
+      TreatMissingData: missing
+      Tags:
+        - Key: Project
+          Value: OpsGuardian
+
+# ── OUTPUTS ──────────────────────────────────────────────────────────────────
+
+Outputs:
+
+  DashboardURL:
+    Description: OpsGuardian Mission Control Dashboard URL
+    Value: !GetAtt DashboardBucket.WebsiteURL
+    Export:
+      Name: OpsGuardian-DashboardURL
+
+  KnowledgeBaseBucketName:
+    Description: S3 bucket name for RAG knowledge base and embeddings
+    Value: !Ref KnowledgeBaseBucket
+    Export:
+      Name: OpsGuardian-KnowledgeBaseBucket
+
+  StateTableName:
+    Description: DynamoDB table for incident state tracking
+    Value: !Ref OpsGuardianStateTable
+    Export:
+      Name: OpsGuardian-StateTable
+
+  ApprovalsTableName:
+    Description: DynamoDB table for pending human approvals
+    Value: !Ref OpsGuardianApprovalsTable
+    Export:
+      Name: OpsGuardian-ApprovalsTable
+
+  AlertsTopicArn:
+    Description: SNS topic ARN for agent pipeline triggers
+    Value: !Ref OpsGuardianAlertsTopic
+    Export:
+      Name: OpsGuardian-AlertsTopicArn
+
+  EmailAlertsTopicArn:
+    Description: SNS topic ARN for human notifications
+    Value: !Ref OpsGuardianEmailAlertsTopic
+    Export:
+      Name: OpsGuardian-EmailAlertsTopicArn
+
+  LambdaRoleArn:
+    Description: IAM role ARN for all Lambda functions
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: OpsGuardian-LambdaRoleArn
+
+  EC2ProfileName:
+    Description: EC2 instance profile for the victim server
+    Value: !Ref EC2InstanceProfile
+    Export:
+      Name: OpsGuardian-EC2ProfileName
