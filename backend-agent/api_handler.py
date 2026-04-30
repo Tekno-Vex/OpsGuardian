@@ -1,3 +1,11 @@
+"""OpsGuardian — API Handler
+===========================
+REST API Lambda backing the GET /status endpoint.
+Scans DynamoDB OpsGuardian_State table, sorts incidents by
+timestamp descending, and returns the latest 10 incidents
+plus aggregate stats to the React Mission Control dashboard.
+"""
+
 import boto3
 import json
 from boto3.dynamodb.conditions import Key
@@ -27,10 +35,7 @@ def lambda_handler(event, context):
         response = table.scan()
         items    = response.get('Items', [])
 
-        # Sort by timestamp descending — newest first
         items.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
-
-        # Build a clean summary
         latest        = items[0] if items else None
         total         = len(items)
         resolved      = sum(1 for i in items if i.get('status') == 'Resolved')

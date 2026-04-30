@@ -46,6 +46,72 @@ OpsGuardian is a **Multi-Agent System (MAS)** — six specialized AI agents, eac
 
 ---
 
+## How To Run OpsGuardian
+
+### Prerequisites
+- AWS Account (Free Tier sufficient)
+- AWS CLI installed and configured (`aws configure`)
+- Python 3.12
+- Node.js 18+
+- Git
+
+### Step 1 — Clone the Repository
+git clone https://github.com/Tekno-Vex/OpsGuardian.git
+cd OpsGuardian
+
+### Step 2 — Deploy AWS Infrastructure
+aws cloudformation deploy 
+--template-file infrastructure/template.yaml 
+--stack-name OpsGuardian 
+--parameter-overrides AlertEmail=your@email.com 
+--capabilities CAPABILITY_NAMED_IAM 
+--region us-east-2
+This creates all DynamoDB tables, S3 buckets, SNS topics, and IAM roles automatically.
+
+### Step 3 — Build and Upload Vector Knowledge Base
+cd knowledge-base
+pip install boto3
+python build_embeddings.py
+This generates 1,024-dimension vectors for each runbook entry and uploads to S3.
+
+### Step 4 — Deploy Lambda Functions
+Push any change to main branch — GitHub Actions automatically deploys all 11 Lambda functions.
+
+Or deploy manually:
+zip -j watcher.zip backend-agent/watcher.py
+aws lambda update-function-code 
+--function-name OpsGuardian-Watcher 
+--zip-file fileb://watcher.zip
+Repeat for each Lambda function in backend-agent/.
+
+### Step 5 — Deploy the React Dashboard
+cd opsguardian-ui
+npm install
+npm run build
+aws s3 sync build/ s3://opsguardian-dashboard-YOUR-ACCOUNT-ID --delete
+
+### Step 6 — Run a Chaos Test
+Connect to the EC2 Victim-Server via AWS Systems Manager Session Manager (no SSH required):
+python3 chaos_cpu.py    # CPU spike test
+python3 chaos_memory.py # Memory exhaustion test
+bash chaos_disk.sh      # Disk fill test
+
+### Step 7 — Working condition
+- Open the S3 dashboard URL in your browser
+- Go to AWS Step Functions → OpsGuardian-Pipeline → Executions
+- Watch each agent execute in real time
+- Check DynamoDB → OpsGuardian_State for the incident record
+
+### Environment Variables Required (set in Lambda Console)
+| Lambda | Variable | Value |
+|---|---|---|
+| OpsGuardian-Watcher | STATE_MACHINE_ARN | Your Step Functions ARN |
+| OpsGuardian-Investigator | S3_BUCKET | Your knowledge base bucket name |
+| OpsGuardian-ApprovalGate | SNS_TOPIC_ARN | OpsGuardian-Email-Alerts ARN |
+| OpsGuardian-ApprovalGate | API_BASE_URL | Your API Gateway URL |
+| OpsGuardian-LearningElement | S3_BUCKET | Your knowledge base bucket name |
+| OpsGuardian-LearningElement | SNS_TOPIC_ARN | OpsGuardian-Email-Alerts ARN |
+
 ## The Six-Agent Pipeline
 
 | Agent | Type | Responsibility |
@@ -134,21 +200,39 @@ A weekly **EventBridge-scheduled Lambda** scans DynamoDB incident history, ident
 
 ---
 
-## Sprint History
+## Code Attribution
 
-| Sprint | Feature | Status |
-|---|---|---|
-| 0–4 | Core pipeline: EC2, Lambda, Bedrock, Critic, DynamoDB, React dashboard | ✅ |
-| 5 | AWS Step Functions distributed multi-agent orchestration | ✅ |
-| 6 | Real RAG with Titan Embeddings V2 and cosine similarity | ✅ |
-| 7 | CloudWatch Agent — CPU, Memory, and Disk monitoring | ✅ |
-| 8 | Human-in-the-Loop approval gate with Step Functions callback tokens | ✅ |
-| 9 | Operational analytics dashboard (MTTR, trends, success rates) | ✅ |
-| 10 | Self-healing runbook and weekly Learning Element | ✅ |
-| 11 | README, architecture diagram, demo GIFs | ✅ |
-| 12 | GitHub Actions CI/CD pipeline | 🔜 |
-| 13 | CloudFormation Infrastructure as Code | 🔜 |
+This project was independently designed and implemented by
+Vivekanandhan Kathirvel for the Intro to Agentic AI course at USF.
 
----
+### AI Assistance
+Claude was used throughout this project as a top-down
+learning tool. I used Claude to understand concepts, learn services, and guide implementation. All code was reviewed, tested, debugged, and validated by me personally throughhands-on implementation in AWS.
+
+### What I Implemented Myself
+The core agent logic was written and iterated with help of claude as follows:
+- All 11 Lambda functions (boto3 SDK calls, agent logic, error handling)
+- AWS Step Functions state machine definition (JSON workflow)
+- RAG pipeline (cosine similarity math, embedding integration)
+- Critic safety blocklist and pre-flight verification logic
+- CloudWatch alarm configuration and SNS topic architecture
+- DynamoDB schema design and query logic
+- CloudFormation infrastructure template
+- GitHub Actions CI/CD workflow
+
+Utilized my AWS Cloud Practitioner and AI practitioner knowledge to do so
+
+### Where I Used Heavy Guidance and Top-Down Learning
+- React dashboard (App.js), learned React patterns with Claude's help
+  as I had little React experience
+- Recharts integration for the analytics tab
+- CSS styling and dashboard layout
+- Setup the API Gateway, as is not the main focus of this project
+
+### Open Source Libraries Used
+- boto3 (Apache 2.0): https://github.com/boto/boto3
+- React (MIT): https://github.com/facebook/react
+- Recharts (MIT): https://github.com/recharts/recharts
+- Axios (MIT): https://github.com/axios/axios
 
 *Built by [Vivekanandhan Kathirvel](https://www.linkedin.com/in/vivekanandhan-kathirvel-828b20253/) — USF M.S. Computer Science*

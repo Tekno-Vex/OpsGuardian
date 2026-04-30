@@ -1,3 +1,12 @@
+"""OpsGuardian — Investigator Agent
+==================================
+Model-Based Reflex Agent responsible for semantic RAG search.
+Loads vector embeddings from S3, embeds the incoming alarm
+description using Amazon Titan Embeddings V2, and performs
+cosine similarity search to find the best matching runbook entry.
+Returns the matched fix and confidence score to the pipeline.
+"""
+
 import boto3
 import json
 import math
@@ -7,14 +16,12 @@ REGION    = 'us-east-2'
 S3_BUCKET = os.environ.get('S3_BUCKET', 'opsguardian-knowledge-base-856567377240')
 MODEL_ID  = 'amazon.titan-embed-text-v2:0'
 
-# Minimum similarity score to auto-fix (below this = escalate to human)
 SIMILARITY_THRESHOLD = 0.25
 
 bedrock = boto3.client('bedrock-runtime', region_name=REGION)
 s3      = boto3.client('s3',              region_name=REGION)
 
 def get_embedding(text):
-    """Call Titan Embeddings V2 to convert text to a vector"""
     response = bedrock.invoke_model(
         modelId=MODEL_ID,
         body=json.dumps({"inputText": text})
@@ -23,7 +30,6 @@ def get_embedding(text):
     return body['embedding']
 
 def cosine_similarity(vec_a, vec_b):
-    """Compute cosine similarity between two vectors (0 to 1)"""
     dot_product = sum(a * b for a, b in zip(vec_a, vec_b))
     magnitude_a = math.sqrt(sum(a * a for a in vec_a))
     magnitude_b = math.sqrt(sum(b * b for b in vec_b))
@@ -37,12 +43,9 @@ def lambda_handler(event, context):
     alarm_type = event['alarm_type']
     alarm_name = event.get('alarm_name', '')
 
-    # Build a natural language description of the alarm
-    # This is what gets embedded and compared against runbook vectors
     query_text = f"alarm type {alarm_type} triggered. alarm name: {alarm_name}. infrastructure incident requiring remediation."
     print(f"Query text for embedding: '{query_text}'")
 
-    # ── Step 1: Load embeddings from S3 ──────────────────────────
     try:
         print(f"Loading embeddings from S3: s3://{S3_BUCKET}/embeddings.json")
         response        = s3.get_object(Bucket=S3_BUCKET, Key='embeddings.json')
@@ -51,7 +54,7 @@ def lambda_handler(event, context):
     except Exception as e:
         print(f"ERROR loading embeddings: {e}")
         print("Falling back to runbook.json...")
-        # Fallback to old runbook if embeddings not found
+
         try:
             response = s3.get_object(Bucket=S3_BUCKET, Key='runbook.json')
             runbook  = json.loads(response['Body'].read().decode('utf-8'))
@@ -63,7 +66,6 @@ def lambda_handler(event, context):
         except Exception as e2:
             raise Exception(f"Both embeddings and runbook failed: {e2}")
 
-    # ── Step 2: Embed the incoming alarm query ────────────────────
     try:
         print("Generating embedding for alarm query...")
         query_vector = get_embedding(query_text)
@@ -71,7 +73,6 @@ def lambda_handler(event, context):
     except Exception as e:
         raise Exception(f"Failed to embed query: {e}")
 
-    # ── Step 3: Cosine similarity search ─────────────────────────
     print("Computing cosine similarity against all runbook entries...")
     results = []
 
@@ -94,7 +95,6 @@ def lambda_handler(event, context):
     print(f"\nBest match: {best_match['id']} ({best_match['alarm_type']}) "
           f"with score {best_match['score']:.4f} ({best_match['score']*100:.1f}%)")
 
-    # ── Step 4: Threshold check ───────────────────────────────────
     if best_match['score'] < SIMILARITY_THRESHOLD:
         print(f"WARNING: Low confidence match ({best_match['score']:.2f} < {SIMILARITY_THRESHOLD})")
         print("Escalating to human instead of auto-fixing")
@@ -109,7 +109,6 @@ def lambda_handler(event, context):
         )
         raise Exception(f"Low confidence RAG match: {best_match['score']:.2f}")
 
-    # ── Step 5: Return enriched incident with RAG results ─────────
     event['runbook'] = {
         best_match['alarm_type']: best_match['fix']
     }

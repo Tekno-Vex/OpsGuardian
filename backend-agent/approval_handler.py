@@ -1,3 +1,11 @@
+"""OpsGuardian — Approval Handler
+================================
+Handles human approve/deny decisions from email link clicks.
+Reads the pending approval from DynamoDB, calls Step Functions
+SendTaskSuccess or SendTaskFailure to resume or cancel the
+pipeline, and returns a styled HTML confirmation page.
+"""
+
 import boto3
 import json
 from datetime import datetime
@@ -91,7 +99,6 @@ def lambda_handler(event, context):
             )
         }
 
-    # Fetch approval record from DynamoDB
     approvals_table = dynamo.Table(APPROVALS_TABLE)
     try:
         response = approvals_table.get_item(Key={'approval_id': approval_id})
@@ -116,7 +123,6 @@ def lambda_handler(event, context):
     alarm_type  = item.get('alarm_type', 'unknown')
     instance_id = item.get('instance_id', 'unknown')
 
-    # Delete from DynamoDB immediately — prevent double-clicks
     approvals_table.delete_item(Key={'approval_id': approval_id})
 
     if decision == 'approve':
@@ -147,7 +153,7 @@ def lambda_handler(event, context):
             )
         }
 
-    else:  # deny
+    else:
         print(f"DENIED — cancelling Step Functions execution")
         try:
             sfn.send_task_failure(

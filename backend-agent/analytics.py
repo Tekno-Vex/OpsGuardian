@@ -1,3 +1,11 @@
+"""OpsGuardian — Analytics Handler
+=================================
+REST API Lambda backing the GET /analytics endpoint.
+Computes operational metrics from DynamoDB incident history:
+MTTR, success rate, incidents by hour, top alarm types,
+command success rates, and 7-day incident trend.
+"""
+
 import boto3
 import json
 from datetime import datetime, timedelta
@@ -30,7 +38,7 @@ def lambda_handler(event, context):
         response = table.scan()
         items    = response.get('Items', [])
 
-        # Filter out LOCK# rows
+
         items = [i for i in items if not str(i.get('incident_id', '')).startswith('LOCK#')]
 
         print(f"Found {len(items)} incidents")
@@ -53,7 +61,6 @@ def lambda_handler(event, context):
                 })
             }
 
-        # ── BASIC COUNTS ─────────────────────────────────────
         total    = len(items)
         resolved = [i for i in items if i.get('status') == 'Resolved']
         failed   = [i for i in items if i.get('status') == 'Failed']
@@ -62,11 +69,6 @@ def lambda_handler(event, context):
 
         success_rate = round(len(resolved) / total, 4) if total > 0 else 0
 
-        # ── MTTR CALCULATION ─────────────────────────────────
-        # For resolved incidents, MTTR = time from incident creation to resolution
-        # Since we log at the end, we use the timestamp as proxy
-        # We compute average duration based on Step Functions execution time
-        # Approximation: use difference between first and last incident timestamps
         mttr_minutes = 0
         if len(resolved) >= 2:
             try:
@@ -81,19 +83,18 @@ def lambda_handler(event, context):
                     gaps = []
                     for j in range(1, len(timestamps)):
                         gap = (timestamps[j] - timestamps[j-1]).total_seconds() / 60
-                        if gap < 60:  # ignore gaps over 1 hour (different sessions)
+                        if gap < 60:
                             gaps.append(gap)
                     if gaps:
                         mttr_minutes = round(sum(gaps) / len(gaps), 2)
                     else:
-                        mttr_minutes = 2.5  # default estimate
+                        mttr_minutes = 2.5
             except Exception as e:
                 print(f"MTTR calc error: {e}")
                 mttr_minutes = 2.5
         elif len(resolved) == 1:
-            mttr_minutes = 2.5  # single incident estimate
+            mttr_minutes = 2.5
 
-        # ── INCIDENTS BY HOUR ─────────────────────────────────
         incidents_by_hour = defaultdict(int)
         for i in items:
             ts = i.get('timestamp', '')
@@ -104,14 +105,12 @@ def lambda_handler(event, context):
                 except:
                     pass
 
-        # ── TOP ALARM TYPES ───────────────────────────────────
         top_alarms = defaultdict(int)
         for i in items:
             alarm_type = i.get('alarm_type', 'Unknown')
             if alarm_type not in ('unknown', 'LOCK'):
                 top_alarms[alarm_type] += 1
 
-        # ── COMMAND SUCCESS RATES ─────────────────────────────
         command_stats = defaultdict(lambda: {'success': 0, 'total': 0})
         for i in items:
             cmd    = i.get('command', '')
@@ -125,11 +124,9 @@ def lambda_handler(event, context):
         for cmd, stats in command_stats.items():
             if stats['total'] > 0:
                 rate = round(stats['success'] / stats['total'], 4)
-                # Shorten long commands for display
                 display_cmd = cmd if len(cmd) <= 30 else cmd[:27] + '...'
                 command_success_rates[display_cmd] = rate
 
-        # ── INCIDENTS LAST 7 DAYS ─────────────────────────────
         today      = datetime.utcnow().date()
         date_counts = {}
         for d in range(6, -1, -1):

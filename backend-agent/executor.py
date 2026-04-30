@@ -1,3 +1,11 @@
+"""OpsGuardian — Executor Agent
+==============================
+Action agent responsible for remote command execution.
+Builds pre-flight existence checks (process running, path exists,
+service available) and sends the full command sequence to the
+EC2 instance via AWS Systems Manager RunCommand without SSH.
+"""
+
 import boto3
 import json
 

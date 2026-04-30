@@ -1,3 +1,12 @@
+"""OpsGuardian — Approval Gate
+=============================
+Human-in-the-Loop safety gate for high-severity incidents.
+Receives the Step Functions task token, saves the pending
+approval to DynamoDB with a 15-minute TTL, and sends the
+on-call engineer a full-context approval email via SNS with
+one-click Approve and Deny links.
+"""
+
 import boto3
 import json
 import os
@@ -13,8 +22,6 @@ sns    = boto3.client('sns',        region_name=REGION)
 
 def lambda_handler(event, context):
     print(f"ApprovalGate activated. Incident: {event.get('incident_id')}")
-
-    # Extract task token — Step Functions injects this automatically
     task_token  = event.get('taskToken')
     incident_id = event.get('incident_id')
     instance_id = event.get('instance_id')
@@ -23,12 +30,9 @@ def lambda_handler(event, context):
     reasoning   = event.get('reasoning', '')
     severity    = event.get('rag_severity', 'high')
     sim_score   = event.get('similarity_score', 0)
-    approval_id = incident_id  # use incident_id as approval_id
+    approval_id = incident_id
 
-    # Calculate expiry — 15 minutes from now
     expires_at = int((datetime.utcnow() + timedelta(minutes=15)).timestamp())
-
-    # Save to DynamoDB with task token
     table = dynamo.Table(DYNAMO_TABLE)
     table.put_item(Item={
         'approval_id':  approval_id,
@@ -45,14 +49,10 @@ def lambda_handler(event, context):
     })
     print(f"Saved approval request to DynamoDB: {approval_id}")
 
-    # Build approve/deny URLs
     approve_url = f"{API_BASE_URL}/approve/{approval_id}/approve"
     deny_url    = f"{API_BASE_URL}/approve/{approval_id}/deny"
 
-    # Format similarity score for display
     confidence = f"{float(sim_score)*100:.1f}%" if sim_score != 'N/A' else 'N/A'
-
-    # Send approval email via SNS
     message = f"""
 🚨 OpsGuardian Approval Required
 

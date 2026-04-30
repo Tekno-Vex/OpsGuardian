@@ -54,7 +54,6 @@ Respond in this EXACT JSON format with no other text:
         body = json.loads(response['body'].read())
         text = body['output']['message']['content'][0]['text'].strip()
 
-        # Clean up response — remove markdown if present
         text = text.replace('```json', '').replace('```', '').strip()
         parsed = json.loads(text)
 
@@ -82,7 +81,6 @@ def lambda_handler(event, context):
     week_ago   = today - timedelta(days=7)
     date_str   = today.strftime('%Y-%m-%d')
 
-    # ── STEP 1: Scan DynamoDB for last 7 days ────────────────
     print(f"Scanning DynamoDB for incidents since {week_ago.isoformat()}")
     table    = dynamo.Table(DYNAMO_TABLE)
     response = table.scan()
@@ -108,7 +106,6 @@ def lambda_handler(event, context):
         print("No recent incidents — nothing to analyze")
         return {'statusCode': 200, 'body': 'No incidents to analyze'}
 
-    # ── STEP 2: Group by command and compute success rates ───
     command_stats = defaultdict(lambda: {
         'total': 0, 'success': 0, 'alarm_types': set(), 'failures': 0
     })
@@ -132,7 +129,6 @@ def lambda_handler(event, context):
 
     print(f"Analyzed {len(command_stats)} unique commands")
 
-    # ── STEP 3: Find underperforming commands ────────────────
     underperforming = []
     performing_well = []
 
@@ -157,7 +153,6 @@ def lambda_handler(event, context):
             performing_well.append(entry)
             print(f"PERFORMING WELL: '{cmd}' → {rate*100:.1f}% ({stats['success']}/{stats['total']})")
 
-    # ── STEP 4: Generate AI suggestions for failing commands ─
     suggestions = []
 
     if underperforming:
@@ -182,7 +177,6 @@ def lambda_handler(event, context):
     else:
         print("All commands performing well — generating positive report")
 
-    # ── STEP 5: Build the report ─────────────────────────────
     well_performing_summary = [
         {
             'command':      e['command'],

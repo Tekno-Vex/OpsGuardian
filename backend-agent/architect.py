@@ -1,3 +1,11 @@
+"""OpsGuardian — Architect Agent
+===============================
+Goal-Based Agent responsible for LLM reasoning.
+Receives the matched runbook entry and RAG confidence score,
+constructs a structured prompt, and calls Amazon Bedrock Nova Micro
+to determine the exact shell command needed for remediation.
+"""
+
 import boto3
 import json
 

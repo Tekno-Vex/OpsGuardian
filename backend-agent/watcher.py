@@ -1,3 +1,11 @@
+"""OpsGuardian — Watcher Agent
+============================
+Entry point for the OpsGuardian pipeline.
+Triggered by SNS when a CloudWatch alarm fires.
+Parses the alarm event to extract instance ID and alarm type,
+then starts the AWS Step Functions state machine execution.
+"""
+
 import boto3
 import json
 import uuid
@@ -12,8 +20,6 @@ sfn = boto3.client('stepfunctions', region_name=REGION)
 
 def lambda_handler(event, context):
     print(f"Watcher activated. Event: {json.dumps(event)}")
-
-    # Parse instance ID
     try:
         if 'Records' in event:
             sns_message = json.loads(event['Records'][0]['Sns']['Message'])
@@ -28,8 +34,6 @@ def lambda_handler(event, context):
         print(f"Could not parse event ({e}), using fallback")
         instance_id = FALLBACK_ID
         alarm_name  = 'OpsGuardian-HighCPU-Alarm'
-
-    # Determine alarm type
     alarm_name_lower = alarm_name.lower()
     if 'memory' in alarm_name_lower or 'mem' in alarm_name_lower:
         alarm_type = 'HighMemory'

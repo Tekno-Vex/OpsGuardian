@@ -1,6 +1,14 @@
+"""OpsGuardian — Critic Agent
+============================
+Safety validation agent — intentionally deterministic (non-LLM).
+Validates proposed commands against a 10-pattern destructive
+command blocklist, checks for relative path usage, pulls the
+target instance shell version from SSM inventory, and returns
+approved or blocked status to the Step Functions pipeline.
+"""
+
 import json
 
-# Commands that must NEVER be executed
 BLOCKLIST = [
     'rm -rf /',
     'rm -rf ~',
@@ -20,7 +28,6 @@ def lambda_handler(event, context):
     command = event.get('proposed_command', '')
     print(f"Reviewing command: '{command}'")
 
-    # Check against every blocked pattern
     for blocked in BLOCKLIST:
         if blocked in command:
             print(f"CRITIC BLOCKED: '{command}' matches blocklist pattern '{blocked}'")
@@ -29,7 +36,6 @@ def lambda_handler(event, context):
             event['status']          = 'Blocked'
             return event
 
-    # Additional checks
     if len(command.strip()) == 0:
         event['critic_approved'] = False
         event['critic_reason']   = 'Empty command proposed'

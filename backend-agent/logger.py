@@ -1,3 +1,12 @@
+"""OpsGuardian — Logger Agent
+============================
+Learning agent and audit trail recorder.
+Always executes regardless of pipeline outcome (success, failure,
+blocked, denied). Writes the complete incident record to DynamoDB
+including command, reasoning, RAG match, shell version,
+preflight checks, and final status.
+"""
+
 import boto3
 import json
 from datetime import datetime
@@ -10,10 +19,7 @@ dynamo = boto3.resource('dynamodb', region_name=REGION)
 def lambda_handler(event, context):
     print(f"Logger activated. Incident: {event.get('incident_id', 'unknown')}")
 
-    # Handle both normal flow and error flow
-    # When Step Functions catches an error it wraps it differently
     if 'Error' in event and 'incident_id' not in event:
-        # This is a raw Step Functions error — log what we can
         incident_id = 'error-' + datetime.utcnow().isoformat()
         item = {
             'incident_id':    incident_id,
