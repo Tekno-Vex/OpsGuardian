@@ -8,7 +8,7 @@
 [![OpsGuardian CI/CD Pipeline](https://github.com/Tekno-Vex/OpsGuardian/actions/workflows/deploy.yml/badge.svg)](https://github.com/Tekno-Vex/OpsGuardian/actions/workflows/deploy.yml)
 ![Cost](https://img.shields.io/badge/Infrastructure_Cost-%240.00%2Fmonth-00C853?style=flat)
 
-> **OpsGuardian solves the Asymmetric Failure Problem** — cloud systems fail at machine speed, but manual debugging happens at human speed. OpsGuardian closes that gap with a 6-agent autonomous pipeline that detects, diagnoses, and remediates infrastructure failures in under **90 seconds** — without human intervention.
+> **OpsGuardian solves the Asymmetric Failure Problem** — cloud systems fail at machine speed, but manual debugging happens at human speed. OpsGuardian closes that gap with a 6-agent autonomous pipeline that detects, diagnoses, and remediates infrastructure failures in under **120 seconds** — without human intervention.
 
 ---
 
